@@ -1,0 +1,57 @@
+# Release Guide
+
+## Trigger
+
+Create and push a semantic version tag:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow only runs for tags matching `vX.Y.Z`.
+
+## Build Matrix
+
+The GitHub Actions workflow builds release artifacts on separate runners:
+
+- `windows-latest` for the Windows x64 installer
+- `macos-13` for Intel macOS artifacts using `x86_64-apple-darwin`
+- `macos-14` for Apple Silicon macOS artifacts using `aarch64-apple-darwin`
+
+Artifacts are attached to a draft GitHub Release through `tauri-apps/tauri-action`.
+
+## Updater Signing
+
+Tauri updater artifacts must be signed during release builds. Configure these repository secrets before publishing update-enabled releases:
+
+- `TAURI_SIGNING_PRIVATE_KEY`: private updater signing key
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: password for the private signing key, if one is configured
+
+Keep the matching public key in the Tauri updater configuration in `src-tauri`. The release workflow intentionally does not edit app configuration; it only provides the signing environment expected by Tauri during packaging.
+
+The updater endpoint is configured for this repository's latest GitHub Release. The updater public key is committed in `src-tauri/tauri.conf.json`. The matching private key lives locally at `.tauri/auto-daily-report.key`, which is ignored by Git. Store its content as `TAURI_SIGNING_PRIVATE_KEY` in GitHub Secrets; do not commit it.
+
+## Unsigned App Distribution
+
+This project intentionally does not require paid Windows code-signing certificates or Apple Developer signing/notarization for early distribution. Windows SmartScreen or macOS Gatekeeper may warn users that the app is from an unidentified developer. Users can still choose to run it from system security controls.
+
+This is separate from updater signing. Tauri updater signing uses the free key pair generated for this project and only verifies that downloaded update artifacts are trusted by this app.
+
+## Windows Installer Directory
+
+The Windows installer should allow users to choose the installation directory. Keep that behavior in the Tauri Windows bundler configuration when `src-tauri` is added, for example through the NSIS installer setting that enables installation directory selection.
+
+## In-App Update Flow
+
+The app should check for updates from inside the desktop UI, show the available version and release notes, download the update after user confirmation, and restart only after the user accepts. Release artifacts and updater metadata should be produced by the tag workflow so the app can discover published versions without a separate packaging step.
+
+## Release Checklist
+
+1. Confirm the app version matches the tag version.
+2. Confirm updater public key and endpoints are configured in `src-tauri`.
+3. Confirm GitHub Actions secrets are present.
+4. Push a `vX.Y.Z` tag.
+5. Inspect the draft GitHub Release artifacts.
+6. Smoke test Windows and both macOS architectures.
+7. Publish the GitHub Release.
