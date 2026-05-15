@@ -16,11 +16,10 @@ The release workflow only runs for tags matching `vX.Y.Z`.
 The GitHub Actions workflow builds release artifacts on separate runners:
 
 - `windows-latest` for the Windows x64 installer
-- `macos-13` for Intel macOS artifacts using `x86_64-apple-darwin`
 - `macos-14` for Apple Silicon macOS artifacts using `aarch64-apple-darwin`
 
 Artifacts are attached to a draft GitHub Release through `tauri-apps/tauri-action`.
-The workflow also uploads the platform bundles to GitHub Actions `Artifacts`, so installers can be downloaded from either the workflow run page or the draft release page.
+Release downloads should be taken from the GitHub Release page rather than the GitHub Actions run page.
 
 ## Updater Signing
 
