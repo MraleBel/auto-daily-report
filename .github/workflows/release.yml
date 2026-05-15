@@ -25,10 +25,6 @@ jobs:
             os: windows-latest
             args: ""
             rust-target: ""
-          - name: macos-intel
-            os: macos-13
-            args: "--target x86_64-apple-darwin"
-            rust-target: x86_64-apple-darwin
           - name: macos-apple-silicon
             os: macos-14
             args: "--target aarch64-apple-darwin"
