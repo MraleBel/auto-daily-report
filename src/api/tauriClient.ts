@@ -38,7 +38,6 @@ const previewSnapshot: AppSnapshot = {
   settings: {
     defaultWorkHours: 8,
     defaultGenerationMode: "message",
-    confirmAiDiffUpload: true,
   },
   reports: [],
   defaultAuthor: {
@@ -70,7 +69,18 @@ export const tauriClient = {
   },
 
   updateRepository(input: UpdateRepositoryInput) {
-    return call<Repository>("update_repository", { input });
+    return call<Repository>("update_repository", { input }, () => ({
+      id: input.id,
+      url: "git@github.com:preview/repository.git",
+      name: "repository",
+      projectName: input.projectName,
+      localPath: "Preview mode",
+      defaultBranch: input.selectedBranch || "main",
+      selectedBranch: input.selectedBranch || "main",
+      sortOrder: input.sortOrder ?? Date.now(),
+      lastSyncAt: now,
+      createdAt: now,
+    }));
   },
 
   removeRepository(id: string) {
@@ -78,7 +88,18 @@ export const tauriClient = {
   },
 
   refreshRepository(id: string) {
-    return call<Repository>("refresh_repository", { id });
+    return call<Repository>("refresh_repository", { id }, () => ({
+      id,
+      url: "git@github.com:preview/repository.git",
+      name: "repository",
+      projectName: "Preview Repository",
+      localPath: "Preview mode",
+      defaultBranch: "main",
+      selectedBranch: "main",
+      sortOrder: Date.now(),
+      lastSyncAt: new Date().toISOString(),
+      createdAt: now,
+    }));
   },
 
   listBranches(repositoryId: string) {
@@ -95,7 +116,7 @@ export const tauriClient = {
       repositoryId: input.repositoryId,
       repositoryName: "Preview Repository",
       branch: input.branch,
-      author: input.author,
+      author: input.authors?.join(", "),
       startAt: input.startAt,
       endAt: input.endAt,
       generationMode: input.generationMode,
