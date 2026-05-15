@@ -5,8 +5,8 @@
 Create and push a semantic version tag:
 
 ```powershell
-git tag v1.0.2
-git push origin v1.0.2
+git tag v1.0.3
+git push origin v1.0.3
 ```
 
 The release workflow only runs for tags matching `vX.Y.Z`.
