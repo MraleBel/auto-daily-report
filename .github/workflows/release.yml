@@ -25,12 +25,10 @@ jobs:
             os: windows-latest
             args: ""
             rust-target: ""
-            bundle-path: src-tauri/target/release/bundle/**
           - name: macos-apple-silicon
             os: macos-14
             args: "--target aarch64-apple-darwin"
             rust-target: aarch64-apple-darwin
-            bundle-path: src-tauri/target/aarch64-apple-darwin/release/bundle/**
 
     steps:
       - name: Checkout
@@ -110,10 +108,3 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}-${{ github.ref_name }}
-          if-no-files-found: error
-          path: ${{ matrix.bundle-path }}
