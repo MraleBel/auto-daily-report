@@ -43,7 +43,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRCMzY2NjMyMzVGNUU1QgpSV1JiWGw4alkyYXpCQloxb00rWTF3a2ppSE5jTG5RRmVGbSswbkxCWDNpQ0hVT0dxTE8wYmFDSQo=",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhGNUI2MUJENENBMTAwQ0IKUldUTEFLRk12V0ZianlyeXBxRlRSekdJOEhQTENVWUdJS2pLUUQxekd2cUhHbFBZMDZSM2hXcXMK",
       "endpoints": [
         "https://github.com/MraleBel/auto-daily-report/releases/latest/download/latest.json"
       ]
