@@ -5,8 +5,8 @@
 Create and push a semantic version tag:
 
 ```powershell
-git tag v1.0.3
-git push origin v1.0.3
+git tag v1.0.4
+git push origin v1.0.4
 ```
 
 The release workflow only runs for tags matching `vX.Y.Z`.
@@ -20,6 +20,7 @@ The GitHub Actions workflow builds release artifacts on separate runners:
 - `macos-14` for Apple Silicon macOS artifacts using `aarch64-apple-darwin`
 
 Artifacts are attached to a draft GitHub Release through `tauri-apps/tauri-action`.
+The workflow also uploads the platform bundles to GitHub Actions `Artifacts`, so installers can be downloaded from either the workflow run page or the draft release page.
 
 ## Updater Signing
 
