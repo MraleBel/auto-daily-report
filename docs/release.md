@@ -20,6 +20,7 @@ The GitHub Actions workflow builds release artifacts on separate runners:
 - `macos-14` for Apple Silicon macOS artifacts using `aarch64-apple-darwin`
 
 Artifacts are attached to a draft GitHub Release through `tauri-apps/tauri-action`.
+The workflow also uploads the platform bundles to GitHub Actions `Artifacts`, so installers can be downloaded from either the workflow run page or the draft release page.
 
 ## Updater Signing
 
