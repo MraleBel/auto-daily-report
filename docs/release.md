@@ -5,8 +5,8 @@
 Create and push a semantic version tag:
 
 ```powershell
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
 The release workflow only runs for tags matching `vX.Y.Z`.
@@ -31,6 +31,15 @@ Tauri updater artifacts must be signed during release builds. Configure these re
 Keep the matching public key in the Tauri updater configuration in `src-tauri`. The release workflow intentionally does not edit app configuration; it only provides the signing environment expected by Tauri during packaging.
 
 The updater endpoint is configured for this repository's latest GitHub Release. The updater public key is committed in `src-tauri/tauri.conf.json`. The matching private key lives locally at `.tauri/auto-daily-report.key`, which is ignored by Git. Store its content as `TAURI_SIGNING_PRIVATE_KEY` in GitHub Secrets; do not commit it.
+
+The `TAURI_SIGNING_PRIVATE_KEY` secret must be the raw contents of the private key file, including the first line that starts with `untrusted comment: minisign secret key`. Do not store:
+
+- the file path such as `.tauri/auto-daily-report.key`
+- a base64-encoded version of the key
+- the public key
+- a single-line value with escaped `\n`
+
+If the key was generated without a password, leave `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` empty or unset. If GitHub Actions reports `failed to decode secret key` or `Missing comment in secret key`, the private key secret content is malformed rather than the platform bundle itself failing.
 
 ## Unsigned App Distribution
 

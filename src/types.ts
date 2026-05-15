@@ -26,7 +26,6 @@ export interface ModelConfig {
 export interface AppSettings {
   defaultWorkHours: number;
   defaultGenerationMode: GenerationMode;
-  confirmAiDiffUpload: boolean;
 }
 
 export interface DefaultAuthor {
@@ -71,12 +70,13 @@ export interface DurationOptions {
 export interface GenerateReportInput {
   repositoryId: string;
   branch: string;
-  author?: string;
+  authors?: string[];
   startAt: string;
   endAt: string;
   generationMode: GenerationMode;
   modelId?: string;
   duration?: DurationOptions;
+  customPrompt?: string;
 }
 
 export interface CommitInfo {
@@ -121,4 +121,5 @@ export interface UpdaterResult {
   version?: string;
   date?: string;
   body?: string;
+  error?: string;
 }

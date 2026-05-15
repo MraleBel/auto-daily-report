@@ -44,7 +44,6 @@ pub struct ModelConfig {
 pub struct AppSettings {
     pub default_work_hours: f32,
     pub default_generation_mode: GenerationMode,
-    pub confirm_ai_diff_upload: bool,
 }
 
 impl Default for AppSettings {
@@ -52,7 +51,6 @@ impl Default for AppSettings {
         Self {
             default_work_hours: 8.0,
             default_generation_mode: GenerationMode::Message,
-            confirm_ai_diff_upload: true,
         }
     }
 }
@@ -154,12 +152,13 @@ pub struct SaveModelInput {
 pub struct GenerateReportInput {
     pub repository_id: String,
     pub branch: String,
-    pub author: Option<String>,
+    pub authors: Option<Vec<String>>,
     pub start_at: String,
     pub end_at: String,
     pub generation_mode: GenerationMode,
     pub model_id: Option<String>,
     pub duration: Option<DurationOptions>,
+    pub custom_prompt: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -408,10 +407,7 @@ fn list_branches(state: State<'_, AppStateData>, repository_id: String) -> AppRe
 fn list_authors(state: State<'_, AppStateData>, repository_id: String) -> AppResult<Vec<String>> {
     let repo = get_repository(&state, &repository_id)?;
     let path = PathBuf::from(repo.local_path);
-    let output = run_git(
-        Some(&path),
-        &["log", "--format=%an <%ae>", "--all", "--since=1 year ago"],
-    )?;
+    let output = run_git(Some(&path), &["log", "--format=%an <%ae>", "--all"])?;
     let mut counts = HashMap::<String, usize>::new();
     for author in output.lines().map(str::trim).filter(|line| !line.is_empty()) {
         *counts.entry(author.to_string()).or_insert(0) += 1;
@@ -450,7 +446,7 @@ async fn generate_report(
     let mut commits = git_commits(
         &path,
         &input.branch,
-        input.author.as_deref(),
+        input.authors.as_deref(),
         &input.start_at,
         &input.end_at,
     )?;
@@ -485,7 +481,7 @@ async fn generate_report(
         repository_name: repo.name.clone(),
         project_name: repo.project_name.clone(),
         branch: input.branch.clone(),
-        author: input.author.clone(),
+        author: input.authors.as_ref().map(|authors| authors.join(", ")),
         start_at: input.start_at.clone(),
         end_at: input.end_at.clone(),
         generation_mode: input.generation_mode,
@@ -651,10 +647,12 @@ fn git_current_branch(path: &Path) -> AppResult<String> {
 fn git_commits(
     path: &Path,
     branch: &str,
-    author: Option<&str>,
+    authors: Option<&[String]>,
     start_at: &str,
     end_at: &str,
 ) -> AppResult<Vec<CommitInfo>> {
+    let start_at = normalize_git_datetime(start_at)?;
+    let end_at = normalize_git_datetime(end_at)?;
     let mut owned_args = vec![
         "log".to_string(),
         branch.to_string(),
@@ -663,8 +661,10 @@ fn git_commits(
         format!("--since={start_at}"),
         format!("--until={end_at}"),
     ];
-    if let Some(author) = author.map(str::trim).filter(|value| !value.is_empty()) {
-        owned_args.push(format!("--author={author}"));
+    if let Some(authors) = authors {
+        for author in authors.iter().map(|value| value.trim()).filter(|value| !value.is_empty()) {
+            owned_args.push(format!("--author={author}"));
+        }
     }
     let args: Vec<&str> = owned_args.iter().map(String::as_str).collect();
     let output = run_git(Some(path), &args)?;
@@ -781,7 +781,7 @@ async fn generate_ai_report(
         "messages": [
             {
                 "role": "system",
-                "content": "你是一个中文研发日报助手。只输出工作内容，不输出寒暄。按开发、修复、优化、测试、文档、其他工作等自然类别组织；如果用户要求工时，则把工时写在每条末尾。"
+                "content": "你是一个中文研发日报助手。只输出工作内容，不输出寒暄。默认输出为数字编号列表，每条独占一行垂直排列。不要输出 Markdown 列表符号、表格、代码块或分类标题。不要出现仓库地址、代码仓库链接、提交链接、PR 链接、Issue 链接或任何 URL。如果用户要求工时，则把工时写在对应条目末尾。"
             },
             {
                 "role": "user",
@@ -811,10 +811,20 @@ async fn generate_ai_report(
 
 fn build_ai_prompt(repo: &Repository, input: &GenerateReportInput, commits: &[CommitInfo]) -> String {
     let mut prompt = String::new();
+    if let Some(custom_prompt) = input
+        .custom_prompt
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        prompt.push_str("最高优先级要求：\n");
+        prompt.push_str(custom_prompt);
+        prompt.push_str("\n\n");
+    }
     prompt.push_str(&format!("标题：{}\n", report_title(repo, &input.branch)));
     prompt.push_str(&format!("时间区间：{} 至 {}\n", input.start_at, input.end_at));
-    if let Some(author) = &input.author {
-        prompt.push_str(&format!("提交者：{author}\n"));
+    if let Some(authors) = input.authors.as_ref().filter(|authors| !authors.is_empty()) {
+        prompt.push_str(&format!("提交者：{}\n", authors.join("、")));
     }
     if let Some(duration) = input.duration.filter(|duration| duration.enabled) {
         prompt.push_str(&format!(
@@ -822,6 +832,11 @@ fn build_ai_prompt(repo: &Repository, input: &GenerateReportInput, commits: &[Co
             duration.total_hours, duration.strategy
         ));
     }
+    prompt.push_str("输出格式要求：\n");
+    prompt.push_str("1. 默认使用阿拉伯数字编号开头，例如“1.”、“2.”、“3.”。\n");
+    prompt.push_str("2. 每条内容单独一行，垂直排列，不要在同一行塞入多条内容。\n");
+    prompt.push_str("3. 不要输出仓库地址、代码仓库相关链接、提交链接、PR 链接、Issue 链接或任何 URL。\n");
+    prompt.push_str("4. 直接输出可复制的日报正文，不要附加说明、总结、前言或标题解释。\n");
     prompt.push_str("提交记录和 diff：\n");
     for commit in commits {
         prompt.push_str(&format!(
@@ -939,6 +954,13 @@ fn normalize_optional(value: Option<String>) -> Option<String> {
 
 fn round_half(value: f32) -> f32 {
     (value * 2.0).round() / 2.0
+}
+
+fn normalize_git_datetime(value: &str) -> AppResult<String> {
+    let parsed = DateTime::parse_from_rfc3339(value)
+        .map_err(|err| format!("时间格式无效：{err}"))?
+        .with_timezone(&Local);
+    Ok(parsed.format("%Y-%m-%d %H:%M:%S %z").to_string())
 }
 
 #[allow(dead_code)]
