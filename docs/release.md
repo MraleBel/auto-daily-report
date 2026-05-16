@@ -15,15 +15,19 @@ The release workflow only runs for tags matching `vX.Y.Z`.
 
 The GitHub Actions workflow builds release artifacts on separate runners:
 
-- `windows-latest` for the Windows x64 installer
-- `macos-14` for Apple Silicon macOS artifacts using `aarch64-apple-darwin`
+- `windows-latest` for one Windows x64 NSIS installer
+- `macos-14` for one Apple Silicon macOS DMG using `aarch64-apple-darwin`
 
 Artifacts are attached to a published GitHub Release through `tauri-apps/tauri-action`.
 Release downloads should be taken from the published GitHub Release page rather than the GitHub Actions run page.
 
 ## Updater Signing
 
-Tauri updater artifacts must be signed during release builds. Configure these repository secrets before publishing update-enabled releases:
+This project currently distributes standard installation packages only. It does not publish Tauri updater artifacts.
+
+The updater signing configuration is kept in the repository for future use, but it is not part of the current release output.
+
+If you later restore update-enabled releases, configure these repository secrets before publishing:
 
 - `TAURI_SIGNING_PRIVATE_KEY`: private updater signing key
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: password for the private signing key, if one is configured
@@ -58,7 +62,7 @@ The Windows installer should allow users to choose the installation directory. K
 
 ## In-App Update Flow
 
-The app should check for updates from inside the desktop UI, show the available version and release notes, download the update after user confirmation, and restart only after the user accepts. Release artifacts and updater metadata should be produced by the tag workflow so the app can discover published versions without a separate packaging step.
+The app currently points users to standard GitHub Release downloads instead of performing in-app update installation.
 
 ## Release Checklist
 
@@ -66,5 +70,5 @@ The app should check for updates from inside the desktop UI, show the available 
 2. Confirm updater public key and endpoints are configured in `src-tauri`.
 3. Confirm GitHub Actions secrets are present.
 4. Push a `vX.Y.Z` tag.
-5. Inspect the published GitHub Release assets.
+5. Inspect the published GitHub Release assets and confirm there is exactly one Windows installer and one Apple Silicon DMG.
 6. Smoke test Windows and both macOS architectures.

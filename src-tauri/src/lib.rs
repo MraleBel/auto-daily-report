@@ -549,8 +549,8 @@ fn delete_report(state: State<'_, AppStateData>, id: String) -> AppResult<()> {
 #[tauri::command]
 fn check_update_status(_app: AppHandle) -> UpdateStatus {
     UpdateStatus {
-        configured: true,
-        message: "应用内更新由 Tauri updater 插件负责检查、下载、安装并重启。".to_string(),
+        configured: false,
+        message: "当前版本仅通过 GitHub Release 提供标准安装包下载，不提供应用内在线更新。".to_string(),
     }
 }
 

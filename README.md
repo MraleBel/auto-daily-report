@@ -10,21 +10,20 @@ Auto Daily Report is a Tauri desktop app for generating plain-text daily reports
 - Generate with commit messages by default, or use an OpenAI-compatible model to analyze diffs.
 - Configure model name, base URL, and API key locally with show/edit/delete controls.
 - Optionally allocate a configured work duration across generated report items.
-- Check for updates in app, install an available release, and restart.
+- Download standard installers from GitHub Releases.
 
 ## Release Builds
 
-Releases are cut from semantic version tags in the form `vX.Y.Z`, for example `v0.1.0`. Pushing one of those tags starts `.github/workflows/release.yml`, which builds:
+Releases are cut from semantic version tags in the form `vX.Y.Z`, for example `v0.1.0`. Pushing one of those tags starts `.github/workflows/release.yml`, which publishes:
 
-- Windows x64 installer artifacts on `windows-latest`
-- macOS Intel app bundle/installer artifacts on `macos-13`
-- macOS Apple Silicon app bundle/installer artifacts on `macos-14`
+- one Windows x64 NSIS installer on `windows-latest`
+- one macOS Apple Silicon DMG on `macos-14`
 
-The workflow creates a draft GitHub Release so maintainers can inspect artifacts, update release notes, and publish when ready.
+The workflow publishes a standard GitHub Release directly. End-user downloads should come from the Release page instead of the Actions page.
 
 ## Installer And Updates
 
-Windows installer configuration should keep user-selectable install directory support enabled in the Tauri bundler configuration. The app should expose update checks through the in-app update flow backed by Tauri updater metadata.
+Windows installer configuration should keep user-selectable install directory support enabled in the Tauri bundler configuration. The app currently distributes standard installation packages through GitHub Releases instead of in-app updater metadata.
 
 The updater endpoint is configured for this repository's latest GitHub Release.
 
