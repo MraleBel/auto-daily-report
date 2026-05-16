@@ -565,10 +565,23 @@ export default function App() {
     const initial = options?.initial ?? false;
     setUpdateUi((current) => ({ ...current, checking: true, message: initial ? current.message : "正在检查更新…" }));
     try {
-      const [status, update]: [Awaited<ReturnType<typeof tauriClient.checkUpdateStatus>>, UpdaterResult] = await Promise.all([
-        tauriClient.checkUpdateStatus(),
-        tauriClient.checkForAppUpdate().catch((caught) => ({ available: false, error: readError(caught) } satisfies UpdaterResult)),
-      ]);
+      const status = await tauriClient.checkUpdateStatus();
+      if (!status.configured) {
+        setUpdateUi({
+          checkedOnce: true,
+          checking: false,
+          available: null,
+          message: status.message,
+          showPopover: false,
+        });
+        if (!initial) {
+          showToast("info", status.message);
+        }
+        return;
+      }
+      const update: UpdaterResult = await tauriClient
+        .checkForAppUpdate()
+        .catch((caught) => ({ available: false, error: readError(caught) } satisfies UpdaterResult));
       if (update.available) {
         setUpdateUi({
           checkedOnce: true,

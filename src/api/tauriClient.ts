@@ -153,7 +153,7 @@ export const tauriClient = {
   checkUpdateStatus() {
     return call<UpdateStatus>("check_update_status", undefined, () => ({
       configured: false,
-      message: "Updater is only available inside the desktop app.",
+      message: "当前版本仅通过 GitHub Release 提供标准安装包下载，不提供应用内在线更新。",
     }));
   },
 
