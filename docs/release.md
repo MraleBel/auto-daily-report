@@ -18,8 +18,8 @@ The GitHub Actions workflow builds release artifacts on separate runners:
 - `windows-latest` for the Windows x64 installer
 - `macos-14` for Apple Silicon macOS artifacts using `aarch64-apple-darwin`
 
-Artifacts are attached to a draft GitHub Release through `tauri-apps/tauri-action`.
-Release downloads should be taken from the GitHub Release page rather than the GitHub Actions run page.
+Artifacts are attached to a published GitHub Release through `tauri-apps/tauri-action`.
+Release downloads should be taken from the published GitHub Release page rather than the GitHub Actions run page.
 
 ## Updater Signing
 
@@ -66,6 +66,5 @@ The app should check for updates from inside the desktop UI, show the available 
 2. Confirm updater public key and endpoints are configured in `src-tauri`.
 3. Confirm GitHub Actions secrets are present.
 4. Push a `vX.Y.Z` tag.
-5. Inspect the draft GitHub Release artifacts.
+5. Inspect the published GitHub Release assets.
 6. Smoke test Windows and both macOS architectures.
-7. Publish the GitHub Release.

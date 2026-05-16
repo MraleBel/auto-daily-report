@@ -105,6 +105,6 @@ jobs:
           releaseName: "Auto Daily Report ${{ github.ref_name }}"
           releaseBody: |
             See README.md and docs/release.md for installer, updater, and signing notes.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
