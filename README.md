@@ -32,4 +32,4 @@ The updater public key is already configured. The matching private key was gener
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
 
-The app is distributed unsigned by default. Windows SmartScreen or macOS Gatekeeper may warn users, and users can choose to run it from system security controls. See [docs/release.md](docs/release.md) for release and updater notes.
+Windows builds may still show SmartScreen warnings if you do not add Windows code-signing later. macOS builds are expected to be signed with a Developer ID Application certificate and notarized through the release workflow secrets. See [docs/release.md](docs/release.md) for release and signing notes.

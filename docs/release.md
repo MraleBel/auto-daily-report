@@ -21,9 +21,21 @@ The GitHub Actions workflow builds release artifacts on separate runners:
 Artifacts are attached to a published GitHub Release through `tauri-apps/tauri-action`.
 Release downloads should be taken from the published GitHub Release page rather than the GitHub Actions run page.
 
-## Updater Signing
+## macOS Signing And Notarization
+
+macOS release builds are intended to be distributed as standard signed and notarized DMGs. Configure these repository secrets before publishing:
+
+- `APPLE_CERTIFICATE`: base64-encoded exported `.p12` certificate containing a `Developer ID Application` identity
+- `APPLE_CERTIFICATE_PASSWORD`: password used when exporting the `.p12` certificate
+- `APPLE_ID`: Apple account email used for notarization
+- `APPLE_PASSWORD`: app-specific password for the Apple account
+- `APPLE_TEAM_ID`: Apple Developer Team ID
+
+The release workflow imports the certificate into a temporary keychain on the macOS runner, discovers the `Developer ID Application` signing identity automatically, then passes the signing and notarization environment to Tauri.
 
 This project currently distributes standard installation packages only. It does not publish Tauri updater artifacts.
+
+## Updater Signing
 
 The updater signing configuration is kept in the repository for future use, but it is not part of the current release output.
 
@@ -52,7 +64,7 @@ If the key was generated without a password, leave `TAURI_SIGNING_PRIVATE_KEY_PA
 
 ## Unsigned App Distribution
 
-This project intentionally does not require paid Windows code-signing certificates or Apple Developer signing/notarization for early distribution. Windows SmartScreen or macOS Gatekeeper may warn users that the app is from an unidentified developer. Users can still choose to run it from system security controls.
+Windows builds can still be shipped without Windows code signing during early distribution, though SmartScreen may warn users. macOS builds should be treated differently: unsigned or unnotarized DMGs can be flagged by Gatekeeper as damaged or unsafe when downloaded from the browser.
 
 This is separate from updater signing. Tauri updater signing uses the free key pair generated for this project and only verifies that downloaded update artifacts are trusted by this app.
 
@@ -71,4 +83,4 @@ The app currently points users to standard GitHub Release downloads instead of p
 3. Confirm GitHub Actions secrets are present.
 4. Push a `vX.Y.Z` tag.
 5. Inspect the published GitHub Release assets and confirm there is exactly one Windows installer and one Apple Silicon DMG.
-6. Smoke test Windows and both macOS architectures.
+6. Smoke test Windows and confirm the Apple Silicon DMG opens without Gatekeeper "damaged" warnings.
