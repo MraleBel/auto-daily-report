@@ -409,12 +409,13 @@ h3 {
 }
 
 .workspace {
+  --workspace-inset: 20px;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   align-content: start;
   min-width: 0;
   height: 100dvh;
-  padding: 20px 20px 18px 22px;
+  padding: var(--workspace-inset);
   overflow: hidden;
 }
 
@@ -539,6 +540,29 @@ h3 {
   line-height: 1.55;
 }
 
+.repository-update-note {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-md);
+  background: rgba(250, 249, 245, 0.74);
+}
+
+.repository-update-note span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.repository-update-note code {
+  color: var(--body-strong);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .metric {
   min-width: 92px;
   padding: 10px 12px;
@@ -582,10 +606,15 @@ h3 {
 }
 
 .settings-grid {
-  grid-template-columns: minmax(320px, 0.88fr) minmax(0, 1.12fr);
+  grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
+  align-items: start;
   width: 100%;
-  max-width: 1240px;
+  max-width: none;
   margin: 0;
+}
+
+.settings-grid > .panel {
+  min-width: 0;
 }
 
 .control-column {
@@ -668,6 +697,12 @@ h3 {
   gap: 10px;
 }
 
+.panel-title h3 {
+  font-size: 1.18rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
 .panel-icon {
   display: grid;
   place-items: center;
@@ -701,6 +736,30 @@ h3 {
 
 .duration-grid {
   grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr);
+}
+
+.settings-panel-heading,
+.form-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.edit-pill {
+  background: rgba(93, 184, 166, 0.12);
+  color: #88d4c7;
+}
+
+.form-action-row .primary-button {
+  flex: 1;
 }
 
 .field {
@@ -1024,6 +1083,34 @@ button:active {
   gap: 8px;
 }
 
+.strategy-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.strategy-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.strategy-panel-heading strong {
+  display: block;
+  color: var(--body-strong);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.strategy-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--rounded-lg);
+  background: rgba(250, 249, 245, 0.66);
+}
+
 .segmented {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1061,6 +1148,43 @@ button:active {
 .global-ai-stack {
   display: grid;
   gap: 14px;
+}
+
+.ai-integrity-note {
+  padding: 11px 13px;
+  border: 1px solid rgba(204, 120, 92, 0.18);
+  border-radius: var(--rounded-md);
+  background: rgba(204, 120, 92, 0.08);
+  color: var(--body-strong);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.section-label {
+  display: grid;
+  gap: 4px;
+}
+
+.section-label span {
+  color: var(--body-strong);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.section-label small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.shared-range-panel {
+  display: grid;
+  padding-top: 2px;
+}
+
+.compact-helper {
+  font-size: 0.86rem;
 }
 
 .mode-summary {
@@ -1102,6 +1226,7 @@ button:active {
 .repo-settings-head h3 {
   color: var(--on-dark);
   font-size: 1.6rem;
+  min-width: 0;
 }
 
 .repo-url {
@@ -1110,6 +1235,17 @@ button:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.repo-title-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.repo-title-line h3 {
+  overflow-wrap: anywhere;
 }
 
 .repo-settings-body {
@@ -1156,8 +1292,11 @@ button:active {
   min-width: 0;
 }
 
-.inline-refresh {
-  align-self: end;
+.title-refresh {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  color: #f0c98f;
 }
 
 .status-pill {
@@ -1290,7 +1429,9 @@ button:active {
 }
 
 .history-list {
-  max-width: 1240px;
+  align-content: start;
+  width: 100%;
+  max-width: none;
   margin: 0;
   min-height: 0;
   overflow: auto;
@@ -1298,15 +1439,17 @@ button:active {
 }
 
 .history-row {
+  align-items: flex-start;
   justify-content: space-between;
+  width: 100%;
   padding: 20px 22px;
-  gap: 18px;
+  gap: 16px;
   background: var(--surface-card);
 }
 
 .history-copy {
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .history-row > div {
@@ -1314,12 +1457,13 @@ button:active {
 }
 
 .history-row h3 {
-  font-size: 1.5rem;
+  font-size: 1.15rem;
+  line-height: 1.25;
 }
 
 .history-row p {
   color: var(--muted);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .history-row p.eyebrow {
@@ -1350,14 +1494,27 @@ button:active {
 }
 
 .model-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(178px, auto);
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   padding: 16px;
   border: 1px solid var(--hairline);
   border-radius: var(--rounded-lg);
   background: rgba(250, 249, 245, 0.9);
+}
+
+.model-row > div:first-child {
+  min-width: 0;
+}
+
+.model-row .split-actions {
+  min-width: 178px;
+  justify-content: flex-end;
+}
+
+.model-row .split-actions .ghost-button {
+  min-width: 98px;
 }
 
 .panel-dark .model-row {
@@ -1398,7 +1555,6 @@ button:active {
 @media (max-width: 1220px) {
   .app-shell,
   .report-grid,
-  .settings-grid,
   .repo-settings-body {
     grid-template-columns: 1fr;
   }
@@ -1443,6 +1599,12 @@ button:active {
   }
 }
 
+@media (max-width: 640px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   h1 {
     font-size: 1.5rem;
@@ -1453,12 +1615,18 @@ button:active {
   }
 
   h3,
-  .repo-settings-head h3,
-  .history-row h3 {
+  .repo-settings-head h3 {
     font-size: 1.45rem;
   }
 
-  .workspace,
+  .history-row h3 {
+    font-size: 1.08rem;
+  }
+
+  .workspace {
+    --workspace-inset: 18px;
+  }
+
   .sidebar {
     padding: 18px;
   }
@@ -1478,10 +1646,21 @@ button:active {
   .topbar,
   .topbar-actions,
   .history-row,
+  .settings-panel-heading,
+  .form-action-row,
   .repo-settings-head,
   .repo-mode-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .settings-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .form-action-row .primary-button {
+    width: 100%;
   }
 
   .field-grid,

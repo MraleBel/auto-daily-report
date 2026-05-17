@@ -16,25 +16,20 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowsClockwise,
-  CalendarBlank,
   Check,
   ClipboardText,
   Clock,
   Copy,
   DotsSixVertical,
-  DownloadSimple,
   Eye,
   EyeSlash,
-  GitBranch,
   HardDrives,
   Key,
   Lightning,
-  ListChecks,
   Plus,
   Sparkle,
   Trash,
   WarningCircle,
-  X,
 } from "@phosphor-icons/react";
 import { tauriClient } from "./api/tauriClient";
 import type {
@@ -54,6 +49,8 @@ import packageJson from "../package.json";
 
 type ViewKey = "generate" | "history" | "settings";
 type BusyMap = Record<string, boolean>;
+type TimeRangeMode = "shared" | "perRepository";
+type DateRange = Pick<RepositoryDraft, "startAt" | "endAt">;
 
 interface RepositoryDraft {
   projectName: string;
@@ -97,12 +94,13 @@ const defaultDuration: DurationOptions = {
 const emptyModelForm = {
   id: "",
   name: "",
-  baseUrl: "https://api.openai.com/v1",
+  baseUrl: "",
   apiKey: "",
-  model: "gpt-4o-mini",
+  model: "",
 };
 
 const appVersion = packageJson.version;
+const appRepositoryUrl = "https://github.com/MraleBel/auto-daily-report.git";
 
 function todayStartLocal() {
   const date = new Date();
@@ -122,13 +120,24 @@ function toDatetimeLocal(date: Date) {
   return local.toISOString().slice(0, 16);
 }
 
-function parseDateRange(value: string) {
-  const [startAt = "", endAt = ""] = value.split("~").map((part) => part.trim());
-  return { startAt, endAt };
+function formatDateRange(startAt: string, endAt: string) {
+  return `${formatDateInput(startAt)} 至 ${formatDateInput(endAt)}`;
 }
 
-function formatDateRange(startAt: string, endAt: string) {
-  return `${startAt} ~ ${endAt}`;
+function formatDateInput(value: string) {
+  if (!value) {
+    return "未选择";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace("T", " ");
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${parsed.getFullYear()}年${pad(parsed.getMonth() + 1)}月${pad(parsed.getDate())}日 ${pad(parsed.getHours())}:${pad(
+    parsed.getMinutes(),
+  )}`;
 }
 
 function localInputToIso(value: string) {
@@ -165,6 +174,11 @@ export default function App() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("message");
   const [selectedModelId, setSelectedModelId] = useState("");
+  const [timeRangeMode, setTimeRangeMode] = useState<TimeRangeMode>("shared");
+  const [sharedDateRange, setSharedDateRange] = useState<DateRange>({
+    startAt: todayStartLocal(),
+    endAt: todayEndLocal(),
+  });
   const [duration, setDuration] = useState<DurationOptions>(defaultDuration);
   const [customPrompt, setCustomPrompt] = useState("");
   const [sortingMode, setSortingMode] = useState(false);
@@ -180,7 +194,6 @@ export default function App() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const updatePopoverRef = useRef<HTMLDivElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
-  const authorDropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const pointerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -441,12 +454,13 @@ export default function App() {
 
   function makeGenerateInput(repo: Repository): GenerateReportInput {
     const draft = repoDrafts[repo.id];
+    const dateRange = getDateRangeForRepo(repo);
     return {
       repositoryId: repo.id,
       branch: draft.selectedBranch,
       authors: draft.authors.length > 0 ? draft.authors : undefined,
-      startAt: localInputToIso(draft.startAt),
-      endAt: localInputToIso(draft.endAt),
+      startAt: localInputToIso(dateRange.startAt),
+      endAt: localInputToIso(dateRange.endAt),
       generationMode,
       modelId: generationMode === "ai" ? selectedModelId : undefined,
       duration: duration.enabled ? duration : undefined,
@@ -454,20 +468,48 @@ export default function App() {
     };
   }
 
-  async function generateForRepo(repo: Repository) {
-    if (!repoDrafts[repo.id]) {
-      return;
+  function getDateRangeForRepo(repo: Repository): DateRange {
+    const draft = repoDrafts[repo.id];
+    if (timeRangeMode === "shared") {
+      return sharedDateRange;
+    }
+    return {
+      startAt: draft.startAt,
+      endAt: draft.endAt,
+    };
+  }
+
+  function validateGenerateTargets(targetRepositories: Repository[]) {
+    if (targetRepositories.length === 0) {
+      setError("请先勾选至少一个仓库。");
+      return false;
+    }
+    if (targetRepositories.some((repo) => !repoDrafts[repo.id])) {
+      setError("仓库信息还在加载中，请稍后再生成。");
+      return false;
     }
     if (generationMode === "ai" && !selectedModelId) {
       setError("AI 辅助模式需要先在设置中保存并选择一个模型。");
+      return false;
+    }
+    return true;
+  }
+
+  async function requestReportForRepo(repo: Repository) {
+    const report = await tauriClient.generateReport(makeGenerateInput(repo));
+    setReports((current) => [report, ...current.filter((item) => item.repositoryId !== repo.id)]);
+    return report;
+  }
+
+  async function generateForRepo(repo: Repository) {
+    if (!validateGenerateTargets([repo])) {
       return;
     }
 
     setBusyFlag(`generate-${repo.id}`, true);
     setError("");
     try {
-      const report = await tauriClient.generateReport(makeGenerateInput(repo));
-      setReports((current) => [report, ...current.filter((item) => item.repositoryId !== repo.id)]);
+      await requestReportForRepo(repo);
       showToast("success", `${repo.projectName || repo.name} 日报已生成。`);
     } catch (caught) {
       setError(readError(caught));
@@ -477,15 +519,33 @@ export default function App() {
   }
 
   async function generateBatch() {
-    if (selectedRepositories.length === 0) {
-      setError("请先勾选至少一个仓库。");
+    const runnableRepositories = selectedRepositories.filter((repo) => repoDrafts[repo.id]);
+    if (!validateGenerateTargets(selectedRepositories)) {
       return;
     }
     setBusyFlag("generate-batch", true);
+    setBusyFlags(
+      runnableRepositories.map((repo) => `generate-${repo.id}`),
+      true,
+    );
     setError("");
     try {
-      for (const repo of selectedRepositories) {
-        await generateForRepo(repo);
+      const results = await Promise.allSettled(
+        runnableRepositories.map(async (repo) => {
+          try {
+            await requestReportForRepo(repo);
+          } finally {
+            setBusyFlag(`generate-${repo.id}`, false);
+          }
+        }),
+      );
+      const failedResults = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+      const generatedCount = results.length - failedResults.length;
+      if (failedResults.length > 0) {
+        setError(`有 ${failedResults.length} 个仓库生成失败：${readError(failedResults[0].reason)}`);
+      }
+      if (generatedCount > 0) {
+        showToast("success", `${generatedCount} 个仓库日报已生成。`);
       }
     } finally {
       setBusyFlag("generate-batch", false);
@@ -493,7 +553,7 @@ export default function App() {
   }
 
   function summarizeReports() {
-    const text = orderedReports.map((report) => report.text).join("\n\n");
+    const text = orderedReports.map((report) => `${report.projectName || report.repositoryName}\n${report.text}`).join("\n\n");
     setSummary(text);
     if (!text) {
       showToast("info", "还没有可汇总的仓库日报。");
@@ -524,6 +584,7 @@ export default function App() {
       });
       setSelectedModelId(saved.id);
       setModelForm(emptyModelForm);
+      setShowApiKey(false);
       showToast("success", "模型配置已保存。");
     } catch (caught) {
       setError(readError(caught));
@@ -538,9 +599,15 @@ export default function App() {
       await tauriClient.deleteModelConfig(id);
       setModels((current) => current.filter((model) => model.id !== id));
       setSelectedModelId((current) => (current === id ? "" : current));
+      setModelForm((current) => (current.id === id ? emptyModelForm : current));
     } finally {
       setBusyFlag(`delete-model-${id}`, false);
     }
+  }
+
+  function clearModelForm() {
+    setModelForm(emptyModelForm);
+    setShowApiKey(false);
   }
 
   async function saveSettings(nextSettings = settings) {
@@ -587,7 +654,7 @@ export default function App() {
           checkedOnce: true,
           checking: false,
           available: update,
-          message: update.body || `发现 ${update.version}，可直接在线更新。`,
+          message: update.body || `发现 ${update.version}，请前往 Git 仓库更新。`,
           showPopover: true,
         });
         return;
@@ -613,19 +680,15 @@ export default function App() {
     }
   }
 
-  async function installUpdate() {
-    setBusyFlag("install-update", true);
-    try {
-      await tauriClient.installAppUpdate();
-    } catch (caught) {
-      setError(readError(caught));
-    } finally {
-      setBusyFlag("install-update", false);
-    }
-  }
-
   function setBusyFlag(key: string, value: boolean) {
     setBusy((current) => ({ ...current, [key]: value }));
+  }
+
+  function setBusyFlags(keys: string[], value: boolean) {
+    setBusy((current) => ({
+      ...current,
+      ...Object.fromEntries(keys.map((key) => [key, value])),
+    }));
   }
 
   function startSorting() {
@@ -708,7 +771,7 @@ export default function App() {
               <h1>日报工作台</h1>
             </div>
           </div>
-          <p className="brand-subtitle">汇总多个 Git 仓库的日报生成与在线更新</p>
+          <p className="brand-subtitle">汇总多个 Git 仓库的日报生成与版本检查</p>
         </div>
 
         <nav className="view-tabs" aria-label="主导航">
@@ -845,13 +908,13 @@ export default function App() {
               </button>
               {updateUi.showPopover && updateUi.available && (
                 <div className="update-popover">
-                  <p className="eyebrow">在线更新</p>
+                  <p className="eyebrow">版本检查</p>
                   <h3>发现新版本 v{updateUi.available.version}</h3>
-                  <p>{updateUi.available.body || "新版本已发布，可直接在线安装。"} </p>
-                  <button className="primary-button full-width" onClick={installUpdate} disabled={busy["install-update"]}>
-                    <DownloadSimple size={16} />
-                    {busy["install-update"] ? "更新中…" : "立即更新"}
-                  </button>
+                  <p>{updateUi.available.body || "新版本已发布，请前往仓库下载或更新。"} </p>
+                  <div className="repository-update-note">
+                    <span>Git 仓库</span>
+                    <code>{appRepositoryUrl}</code>
+                  </div>
                 </div>
               )}
             </div>
@@ -877,86 +940,143 @@ export default function App() {
           <div className="report-grid">
             <section className="control-column">
               <section className="panel panel-feature strategy-panel">
-                <PanelTitle eyebrow="生成方式" title="输出策略" icon={<Sparkle size={20} weight="duotone" />} />
-                <div className="segmented spacious">
-                  <button className={generationMode === "message" ? "active" : ""} onClick={() => setGenerationMode("message")}>
-                    普通生成
-                  </button>
-                  <button className={generationMode === "ai" ? "active" : ""} onClick={() => setGenerationMode("ai")}>
-                    AI 辅助
-                  </button>
+                <div className="strategy-panel-heading">
+                  <span className="panel-icon">
+                    <Sparkle size={20} weight="duotone" />
+                  </span>
+                  <div>
+                    <strong>生成配置</strong>
+                  </div>
                 </div>
-                <p className="helper-text">
-                  {generationMode === "message"
-                    ? "普通生成会直接按提交记录整理中文日报，不依赖模型。"
-                    : "AI 辅助会统一作用于当前勾选仓库，并优先遵循下面的自定义提示词。"}
-                </p>
-                {generationMode === "ai" && (
-                  <div className="global-ai-stack">
-                    <SelectField
-                      label="模型"
-                      value={selectedModelId}
-                      options={models.map((model) => model.id)}
-                      labels={Object.fromEntries(models.map((model) => [model.id, `${model.name} / ${model.model}`]))}
-                      placeholder="请选择模型"
-                      onChange={setSelectedModelId}
-                    />
-                    <TextAreaField
-                      label="自定义提示词"
-                      value={customPrompt}
-                      placeholder="这里填写统一作用于本次 AI 辅助生成的核心提示词，优先级最高。"
-                      onChange={setCustomPrompt}
-                    />
+
+                <div className="strategy-section">
+                  <div className="section-label">
+                    <span>输出策略</span>
+                    <small>
+                      {generationMode === "message"
+                        ? "按提交记录直接整理中文日报，不依赖模型。"
+                        : "只根据指定时间内查到的提交和 diff 生成内容。"}
+                    </small>
                   </div>
-                )}
-                <label className="toggle-row">
-                  <input
-                    type="checkbox"
-                    checked={duration.enabled}
-                    onChange={(event) =>
-                      setDuration((current) => ({
-                        ...current,
-                        enabled: event.target.checked,
-                      }))
-                    }
-                  />
-                  自动补全工时
-                </label>
-                {duration.enabled && (
-                  <div className="duration-grid">
-                    <label className="field">
-                      <span>总工时</span>
-                      <input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        value={duration.totalHours}
-                        onChange={(event) =>
-                          setDuration((current) => ({
-                            ...current,
-                            totalHours: Number(event.target.value) || settings.defaultWorkHours,
-                          }))
-                        }
+                  <div className="segmented">
+                    <button className={generationMode === "message" ? "active" : ""} onClick={() => setGenerationMode("message")}>
+                      普通生成
+                    </button>
+                    <button className={generationMode === "ai" ? "active" : ""} onClick={() => setGenerationMode("ai")}>
+                      AI 辅助
+                    </button>
+                  </div>
+                  {generationMode === "ai" && (
+                    <div className="global-ai-stack">
+                      <SelectField
+                        label="模型"
+                        value={selectedModelId}
+                        options={models.map((model) => model.id)}
+                        labels={Object.fromEntries(models.map((model) => [model.id, `${model.name} / ${model.model}`]))}
+                        placeholder="请选择模型"
+                        onChange={setSelectedModelId}
                       />
-                    </label>
-                    <label className="field">
-                      <span>分配策略</span>
-                      <select
-                        value={duration.strategy}
-                        onChange={(event) =>
-                          setDuration((current) => ({
-                            ...current,
-                            strategy: event.target.value as DurationStrategy,
-                          }))
-                        }
-                      >
-                        <option value="equal">平均分配</option>
-                        <option value="commitWeighted">按提交数加权</option>
-                        <option value="aiEstimate">AI 估算</option>
-                      </select>
-                    </label>
+                      <TextAreaField
+                        label="自定义提示词"
+                        value={customPrompt}
+                        placeholder="这里填写统一作用于本次 AI 辅助生成的核心提示词，优先级最高。"
+                        onChange={setCustomPrompt}
+                      />
+                      <p className="ai-integrity-note">
+                        如果指定时间内没有匹配提交，系统会直接保留无匹配记录，不请求模型续写。
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="strategy-section">
+                  <div className="section-label">
+                    <span>时间选择</span>
+                    <small>{timeRangeMode === "shared" ? "当前勾选仓库共用一个区间" : "每个仓库单独设置区间"}</small>
                   </div>
-                )}
+                  <div className="segmented">
+                    <button
+                      className={timeRangeMode === "shared" ? "active" : ""}
+                      onClick={() => setTimeRangeMode("shared")}
+                    >
+                      共用时间
+                    </button>
+                    <button
+                      className={timeRangeMode === "perRepository" ? "active" : ""}
+                      onClick={() => setTimeRangeMode("perRepository")}
+                    >
+                      分别设置
+                    </button>
+                  </div>
+                  {timeRangeMode === "shared" ? (
+                    <div className="shared-range-panel">
+                      <DateRangeField
+                        label="共用时间区间"
+                        startAt={sharedDateRange.startAt}
+                        endAt={sharedDateRange.endAt}
+                        onChange={setSharedDateRange}
+                        hint="批量生成时，所有已选仓库都会使用这个时间区间。"
+                      />
+                    </div>
+                  ) : (
+                    <p className="helper-text compact-helper">仓库卡片内会显示独立的时间区间选择。</p>
+                  )}
+                </div>
+
+                <div className="strategy-section">
+                  <div className="section-label">
+                    <span>工时设置</span>
+                    <small>{duration.enabled ? "为每条工作内容补全工时" : "当前不附加工时"}</small>
+                  </div>
+                  <label className="toggle-row">
+                    <input
+                      type="checkbox"
+                      checked={duration.enabled}
+                      onChange={(event) =>
+                        setDuration((current) => ({
+                          ...current,
+                          enabled: event.target.checked,
+                        }))
+                      }
+                    />
+                    自动补全工时
+                  </label>
+                  {duration.enabled && (
+                    <div className="duration-grid">
+                      <label className="field">
+                        <span>总工时</span>
+                        <input
+                          type="number"
+                          min="0.5"
+                          step="0.5"
+                          value={duration.totalHours}
+                          onChange={(event) =>
+                            setDuration((current) => ({
+                              ...current,
+                              totalHours: Number(event.target.value) || settings.defaultWorkHours,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>分配策略</span>
+                        <select
+                          value={duration.strategy}
+                          onChange={(event) =>
+                            setDuration((current) => ({
+                              ...current,
+                              strategy: event.target.value as DurationStrategy,
+                            }))
+                          }
+                        >
+                          <option value="equal">平均分配</option>
+                          <option value="commitWeighted">按提交数加权</option>
+                          <option value="aiEstimate">AI 估算</option>
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                </div>
               </section>
             </section>
 
@@ -982,7 +1102,18 @@ export default function App() {
                         <div className="repo-settings-head">
                           <div>
                             <p className="eyebrow repo-url">{repo.url}</p>
-                            <h3>{repo.projectName || repo.name}</h3>
+                            <div className="repo-title-line">
+                              <h3>{repo.projectName || repo.name}</h3>
+                              <button
+                                className={`icon-button title-refresh ${busy[`refresh-${repo.id}`] ? "is-spinning" : ""}`}
+                                onClick={() => refreshRepository(repo)}
+                                disabled={busy[`refresh-${repo.id}`]}
+                                aria-label={`同步 ${repo.projectName || repo.name}`}
+                                title="同步当前仓库"
+                              >
+                                <ArrowsClockwise size={16} />
+                              </button>
+                            </div>
                           </div>
                           <div className="repo-settings-side">
                             <span className="status-pill">{repo.selectedBranch || repo.defaultBranch || "未选择分支"}</span>
@@ -1017,18 +1148,14 @@ export default function App() {
                                 options={uniqueStrings([defaultAuthor, ...authors])}
                                 onChange={(values) => updateRepoDraftLocal(repo.id, { authors: values })}
                               />
-                              <DateRangeField
-                                label="时间区间"
-                                startAt={draft.startAt}
-                                endAt={draft.endAt}
-                                onChange={(value) => updateRepoDraftLocal(repo.id, value)}
-                              />
-                              <button
-                                className={`icon-button inline-refresh ${busy[`refresh-${repo.id}`] ? "is-spinning" : ""}`}
-                                onClick={() => refreshRepository(repo)}
-                              >
-                                <ArrowsClockwise size={16} />
-                              </button>
+                              {timeRangeMode === "perRepository" && (
+                                <DateRangeField
+                                  label="时间区间"
+                                  startAt={draft.startAt}
+                                  endAt={draft.endAt}
+                                  onChange={(value) => updateRepoDraftLocal(repo.id, value)}
+                                />
+                              )}
                             </div>
                           </div>
 
@@ -1105,10 +1232,8 @@ export default function App() {
             setShowApiKey={setShowApiKey}
             onSaveModel={saveModel}
             onEditModel={(model) => setModelForm(model)}
+            onClearModelForm={clearModelForm}
             onDeleteModel={deleteModel}
-            settings={settings}
-            onSettingsChange={setSettings}
-            onSaveSettings={saveSettings}
             busy={busy}
           />
         )}
@@ -1188,10 +1313,8 @@ function Settings({
   setShowApiKey,
   onSaveModel,
   onEditModel,
+  onClearModelForm,
   onDeleteModel,
-  settings,
-  onSettingsChange,
-  onSaveSettings,
   busy,
 }: {
   models: ModelConfig[];
@@ -1201,16 +1324,25 @@ function Settings({
   setShowApiKey: (show: boolean) => void;
   onSaveModel: (event: FormEvent<HTMLFormElement>) => void;
   onEditModel: (model: ModelConfig) => void;
+  onClearModelForm: () => void;
   onDeleteModel: (id: string) => void;
-  settings: AppSettings;
-  onSettingsChange: (settings: AppSettings) => void;
-  onSaveSettings: (settings?: AppSettings) => void;
   busy: BusyMap;
 }) {
+  const isEditingModel = Boolean(modelForm.id);
+  const hasModelInput = Boolean(modelForm.id || modelForm.name || modelForm.baseUrl || modelForm.model || modelForm.apiKey);
+
   return (
     <div className="settings-grid">
       <form className="panel panel-dark form-stack" onSubmit={onSaveModel}>
-        <PanelTitle eyebrow="模型管理" title="模型接入" icon={<Key size={20} weight="duotone" />} />
+        <div className="settings-panel-heading">
+          <PanelTitle eyebrow="模型管理" title={isEditingModel ? "编辑模型接入" : "新增模型接入"} icon={<Key size={20} weight="duotone" />} />
+          <div className="settings-heading-actions">
+            {isEditingModel && <span className="status-pill edit-pill">编辑中</span>}
+            <button type="button" className="ghost-button mini" onClick={onClearModelForm} disabled={!hasModelInput || busy["model-save"]}>
+              一键清空
+            </button>
+          </div>
+        </div>
         <Field label="配置名称" value={modelForm.name} onChange={(name) => setModelForm({ ...modelForm, name })} required />
         <Field label="接口地址" value={modelForm.baseUrl} onChange={(baseUrl) => setModelForm({ ...modelForm, baseUrl })} required />
         <Field label="模型名称" value={modelForm.model} onChange={(model) => setModelForm({ ...modelForm, model })} required />
@@ -1228,10 +1360,17 @@ function Settings({
           </div>
           <small>当前阶段按本地明文保存，便于快速接入和调整。</small>
         </label>
-        <button className="primary-button full-width" disabled={busy["model-save"]}>
-          <Check size={17} />
-          {busy["model-save"] ? "保存中…" : modelForm.id ? "保存修改" : "保存模型"}
-        </button>
+        <div className="form-action-row">
+          {isEditingModel && (
+            <button type="button" className="ghost-button" onClick={onClearModelForm} disabled={busy["model-save"]}>
+              新增模型
+            </button>
+          )}
+          <button className="primary-button" disabled={busy["model-save"]}>
+            <Check size={17} />
+            {busy["model-save"] ? "保存中…" : isEditingModel ? "保存修改" : "保存模型"}
+          </button>
+        </div>
       </form>
 
       <section className="panel panel-feature">
@@ -1249,7 +1388,7 @@ function Settings({
                   </small>
                 </div>
                 <div className="split-actions compact">
-                  <button className="ghost-button" onClick={() => onEditModel(model)}>
+                  <button type="button" className="ghost-button" onClick={() => onEditModel(model)}>
                     编辑
                   </button>
                   <button
@@ -1265,35 +1404,6 @@ function Settings({
             ))
           )}
         </div>
-      </section>
-
-      <section className="panel panel-plain">
-        <PanelTitle eyebrow="默认偏好" title="基础设置" icon={<CalendarBlank size={20} weight="duotone" />} />
-        <div className="duration-grid">
-          <label className="field">
-            <span>默认工时</span>
-            <input
-              type="number"
-              min="0.5"
-              step="0.5"
-              value={settings.defaultWorkHours}
-              onChange={(event) => onSettingsChange({ ...settings, defaultWorkHours: Number(event.target.value) || 8 })}
-            />
-          </label>
-          <label className="field">
-            <span>默认生成方式</span>
-            <select
-              value={settings.defaultGenerationMode}
-              onChange={(event) => onSettingsChange({ ...settings, defaultGenerationMode: event.target.value as GenerationMode })}
-            >
-              <option value="message">普通生成</option>
-              <option value="ai">AI 辅助</option>
-            </select>
-          </label>
-        </div>
-        <button className="ghost-button" onClick={() => onSaveSettings(settings)} disabled={busy["settings-save"]}>
-          {busy["settings-save"] ? "保存中…" : "保存默认偏好"}
-        </button>
       </section>
     </div>
   );
@@ -1423,11 +1533,13 @@ function DateRangeField({
   startAt,
   endAt,
   onChange,
+  hint = "默认今天 00:00 到 23:59。",
 }: {
   label: string;
   startAt: string;
   endAt: string;
   onChange: (value: { startAt: string; endAt: string }) => void;
+  hint?: string;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1485,7 +1597,7 @@ function DateRangeField({
           </div>
         )}
       </div>
-      <small>格式：`开始时间 ~ 结束时间`，默认今天 00:00 到 23:59。</small>
+      {hint && <small>{hint}</small>}
     </label>
   );
 }

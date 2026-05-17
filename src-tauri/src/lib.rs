@@ -464,6 +464,7 @@ async fn generate_report(
 
     let text = match input.generation_mode {
         GenerationMode::Message => generate_message_report(&repo, &input, &commits),
+        GenerationMode::Ai if commits.is_empty() => generate_message_report(&repo, &input, &commits),
         GenerationMode::Ai => {
             let model = model.ok_or_else(|| "AI 生成需要先选择模型配置".to_string())?;
             generate_ai_report(&repo, &input, &commits, &model)
@@ -550,7 +551,7 @@ fn delete_report(state: State<'_, AppStateData>, id: String) -> AppResult<()> {
 fn check_update_status(_app: AppHandle) -> UpdateStatus {
     UpdateStatus {
         configured: false,
-        message: "当前版本仅通过 GitHub Release 提供标准安装包下载，不提供应用内在线更新。".to_string(),
+        message: "当前版本仅支持检查是否有新版本，实际更新请前往 Git 仓库或 Release 页面处理。".to_string(),
     }
 }
 
@@ -728,7 +729,7 @@ fn generate_message_report(
 
     let allocations = allocate_durations(input.duration, &grouped);
     let mut lines = Vec::new();
-    lines.push(report_title(repo, &input.branch));
+    let mut item_number = 1;
     for (category, items) in grouped {
         for (index, commit) in items.iter().enumerate() {
             let summary = clean_commit_subject(&commit.subject);
@@ -736,7 +737,8 @@ fn generate_message_report(
                 .get(&(category.to_string(), index))
                 .map(|hours| format!("（{hours:.1}小时）"))
                 .unwrap_or_default();
-            lines.push(format!("- {category}：{summary}{duration}"));
+            lines.push(format!("{item_number}. {category}：{summary}{duration}"));
+            item_number += 1;
         }
     }
     lines.join("\n")
@@ -781,7 +783,7 @@ async fn generate_ai_report(
         "messages": [
             {
                 "role": "system",
-                "content": "你是一个中文研发日报助手。只输出工作内容，不输出寒暄。默认输出为数字编号列表，每条独占一行垂直排列。不要输出 Markdown 列表符号、表格、代码块或分类标题。不要出现仓库地址、代码仓库链接、提交链接、PR 链接、Issue 链接或任何 URL。如果用户要求工时，则把工时写在对应条目末尾。"
+                "content": "你是一个中文研发日报助手。只输出工作内容，不输出寒暄。输出必须是阿拉伯数字编号列表，每条以“1.”、“2.”这类数字编号开头并独占一行。不要输出 Markdown 横线列表符号、表格、代码块、分类标题或仓库标题。不要出现仓库地址、代码仓库链接、提交链接、PR 链接、Issue 链接或任何 URL。如果用户要求工时，则把工时写在对应条目末尾。只能根据提供的提交记录和 diff 编写日报，不能模拟、补写、扩展或编造没有依据的工作内容；如果没有指定时间内的提交记录，不生成日报条目。"
             },
             {
                 "role": "user",
@@ -833,10 +835,14 @@ fn build_ai_prompt(repo: &Repository, input: &GenerateReportInput, commits: &[Co
         ));
     }
     prompt.push_str("输出格式要求：\n");
-    prompt.push_str("1. 默认使用阿拉伯数字编号开头，例如“1.”、“2.”、“3.”。\n");
+    prompt.push_str("1. 必须使用阿拉伯数字编号开头，例如“1.”、“2.”、“3.”。\n");
     prompt.push_str("2. 每条内容单独一行，垂直排列，不要在同一行塞入多条内容。\n");
     prompt.push_str("3. 不要输出仓库地址、代码仓库相关链接、提交链接、PR 链接、Issue 链接或任何 URL。\n");
     prompt.push_str("4. 直接输出可复制的日报正文，不要附加说明、总结、前言或标题解释。\n");
+    prompt.push_str("5. 不要使用“-”、“*”、“•”等横线或符号列表，不要输出 Markdown 列表。\n");
+    prompt.push_str("6. 不要输出仓库标题、分类标题或小标题，只输出数字编号条目。\n");
+    prompt.push_str("7. 只允许根据下面提供的提交记录和 diff 生成内容；没有证据的工作不要模拟、不要猜测、不要编造。\n");
+    prompt.push_str("8. 如果没有指定时间内的提交记录，不需要生成任何日报条目。\n");
     prompt.push_str("提交记录和 diff：\n");
     for commit in commits {
         prompt.push_str(&format!(
