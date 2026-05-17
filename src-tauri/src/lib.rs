@@ -211,6 +211,25 @@ pub struct UpdateStatus {
     pub message: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdaterResult {
+    pub available: bool,
+    pub version: Option<String>,
+    pub date: Option<String>,
+    pub body: Option<String>,
+    pub url: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GithubRelease {
+    tag_name: Option<String>,
+    body: Option<String>,
+    html_url: Option<String>,
+    published_at: Option<String>,
+}
+
 pub struct AppStateData {
     store: Mutex<AppStore>,
     store_path: PathBuf,
@@ -252,7 +271,8 @@ pub fn run() {
             delete_model_config,
             update_settings,
             delete_report,
-            check_update_status
+            check_update_status,
+            check_for_app_update
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Auto Daily Report");
@@ -550,9 +570,58 @@ fn delete_report(state: State<'_, AppStateData>, id: String) -> AppResult<()> {
 #[tauri::command]
 fn check_update_status(_app: AppHandle) -> UpdateStatus {
     UpdateStatus {
-        configured: false,
+        configured: true,
         message: "当前版本仅支持检查是否有新版本，实际更新请前往 Git 仓库或 Release 页面处理。".to_string(),
     }
+}
+
+#[tauri::command]
+async fn check_for_app_update(current_version: String) -> AppResult<UpdaterResult> {
+    let client = reqwest::Client::new();
+    let release = client
+        .get("https://api.github.com/repos/MraleBel/auto-daily-report/releases/latest")
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .header(reqwest::header::USER_AGENT, "auto-daily-report")
+        .send()
+        .await
+        .map_err(|err| format!("检查更新失败: {err}"))?;
+
+    if !release.status().is_success() {
+        return Ok(UpdaterResult {
+            available: false,
+            version: None,
+            date: None,
+            body: None,
+            url: None,
+            error: Some(format!("检查更新失败: GitHub Release 返回 {}", release.status())),
+        });
+    }
+
+    let release: GithubRelease = release
+        .json()
+        .await
+        .map_err(|err| format!("解析版本信息失败: {err}"))?;
+    let latest_version = release.tag_name.as_deref().map(normalize_version).unwrap_or_default();
+
+    if latest_version.is_empty() || compare_versions(&latest_version, &current_version) <= 0 {
+        return Ok(UpdaterResult {
+            available: false,
+            version: None,
+            date: None,
+            body: None,
+            url: None,
+            error: None,
+        });
+    }
+
+    Ok(UpdaterResult {
+        available: true,
+        version: Some(latest_version),
+        date: release.published_at,
+        body: release.body,
+        url: release.html_url,
+        error: None,
+    })
 }
 
 fn load_store(path: &Path) -> AppResult<AppStore> {
@@ -924,6 +993,43 @@ fn stable_repo_id(url: &str) -> String {
 
 fn next_sort_order(repositories: &[Repository]) -> i64 {
     repositories.iter().map(|repo| repo.sort_order).max().unwrap_or(0) + 1
+}
+
+fn normalize_version(version: &str) -> String {
+    version.trim().trim_start_matches(['v', 'V']).to_string()
+}
+
+fn compare_versions(left: &str, right: &str) -> i8 {
+    let left_parts = parse_version_parts(left);
+    let right_parts = parse_version_parts(right);
+    let length = left_parts.len().max(right_parts.len());
+
+    for index in 0..length {
+        let left_value = left_parts.get(index).copied().unwrap_or_default();
+        let right_value = right_parts.get(index).copied().unwrap_or_default();
+
+        if left_value > right_value {
+            return 1;
+        }
+        if left_value < right_value {
+            return -1;
+        }
+    }
+
+    0
+}
+
+fn parse_version_parts(version: &str) -> Vec<u32> {
+    normalize_version(version)
+        .split('.')
+        .map(|part| {
+            part.chars()
+                .take_while(|character| character.is_ascii_digit())
+                .collect::<String>()
+                .parse::<u32>()
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 fn now_iso() -> String {

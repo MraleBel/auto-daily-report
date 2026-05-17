@@ -647,7 +647,7 @@ export default function App() {
         return;
       }
       const update: UpdaterResult = await tauriClient
-        .checkForAppUpdate()
+        .checkForAppUpdate(appVersion)
         .catch((caught) => ({ available: false, error: readError(caught) } satisfies UpdaterResult));
       if (update.available) {
         setUpdateUi({
@@ -913,7 +913,7 @@ export default function App() {
                   <p>{updateUi.available.body || "新版本已发布，请前往仓库下载或更新。"} </p>
                   <div className="repository-update-note">
                     <span>Git 仓库</span>
-                    <code>{appRepositoryUrl}</code>
+                    <code>{updateUi.available.url || appRepositoryUrl}</code>
                   </div>
                 </div>
               )}

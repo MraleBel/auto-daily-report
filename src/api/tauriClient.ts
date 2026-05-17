@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { check } from "@tauri-apps/plugin-updater";
 import type {
   AddRepositoryInput,
   AppSettings,
@@ -16,6 +15,8 @@ import type {
 } from "../types";
 
 const desktopAvailable = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const appRepository = "MraleBel/auto-daily-report";
+const latestReleaseApi = `https://api.github.com/repos/${appRepository}/releases/latest`;
 
 async function call<T>(command: string, args?: Record<string, unknown>, fallback?: () => T | Promise<T>): Promise<T> {
   if (desktopAvailable()) {
@@ -91,6 +92,37 @@ const previewSnapshot: AppSnapshot = {
     email: "user@example.com",
   },
 };
+
+function normalizeVersion(version: string) {
+  return version.trim().replace(/^v/i, "");
+}
+
+function compareVersions(left: string, right: string) {
+  const leftParts = normalizeVersion(left).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = normalizeVersion(right).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = leftParts[index] ?? 0;
+    const rightValue = rightParts[index] ?? 0;
+    if (leftValue > rightValue) {
+      return 1;
+    }
+    if (leftValue < rightValue) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+interface GitHubRelease {
+  tag_name?: string;
+  name?: string;
+  body?: string;
+  html_url?: string;
+  published_at?: string;
+}
 
 export const tauriClient = {
   isDesktop: desktopAvailable,
@@ -206,26 +238,41 @@ export const tauriClient = {
 
   checkUpdateStatus() {
     return call<UpdateStatus>("check_update_status", undefined, () => ({
-      configured: false,
+      configured: true,
       message: "当前版本仅支持检查是否有新版本，实际更新请前往 Git 仓库或 Release 页面处理。",
     }));
   },
 
-  async checkForAppUpdate(): Promise<UpdaterResult> {
-    if (!desktopAvailable()) {
-      return { available: false };
+  async checkForAppUpdate(currentVersion: string): Promise<UpdaterResult> {
+    if (desktopAvailable()) {
+      return invoke<UpdaterResult>("check_for_app_update", { currentVersion });
     }
 
-    const update = await check();
-    if (!update) {
+    const response = await fetch(latestReleaseApi, {
+      headers: {
+        Accept: "application/vnd.github+json",
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        available: false,
+        error: `检查更新失败：GitHub Release 返回 ${response.status}`,
+      };
+    }
+
+    const release = (await response.json()) as GitHubRelease;
+    const latestVersion = release.tag_name ? normalizeVersion(release.tag_name) : "";
+    if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0) {
       return { available: false };
     }
 
     return {
       available: true,
-      version: update.version,
-      date: update.date,
-      body: update.body,
+      version: latestVersion,
+      date: release.published_at,
+      body: release.body,
+      url: release.html_url,
     };
   },
 

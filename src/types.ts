@@ -121,5 +121,6 @@ export interface UpdaterResult {
   version?: string;
   date?: string;
   body?: string;
+  url?: string;
   error?: string;
 }
