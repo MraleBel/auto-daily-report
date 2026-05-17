@@ -25,11 +25,4 @@ The workflow publishes a standard GitHub Release directly. End-user downloads sh
 
 Windows installer configuration should keep user-selectable install directory support enabled in the Tauri bundler configuration. The app currently distributes standard installation packages through GitHub Releases instead of in-app updater metadata.
 
-The updater endpoint is configured for this repository's latest GitHub Release.
-
-The updater public key is already configured. The matching private key was generated locally at `.tauri/auto-daily-report.key` and is ignored by Git. Put that private key value into GitHub Secrets before release builds:
-
-- `TAURI_SIGNING_PRIVATE_KEY`
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-
-Windows builds may still show SmartScreen warnings if you do not add Windows code-signing later. macOS builds are expected to be signed with a Developer ID Application certificate and notarized through the release workflow secrets. See [docs/release.md](docs/release.md) for release and signing notes.
+Windows builds may still show SmartScreen warnings without Windows code signing. macOS builds use free ad-hoc signing so the app bundle is internally signed, but they are not notarized with a paid Apple Developer account. If macOS blocks the first launch, open System Settings > Privacy & Security and choose Open Anyway, or right-click the app and choose Open. See [docs/release.md](docs/release.md) for release notes.
